@@ -1,4 +1,4 @@
-package hr.bskracic.squil.dto;
+package hr.bskracic.squil.dto.query;
 
 public class QueryRequest {
     public String userID;

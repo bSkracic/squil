@@ -9,12 +9,12 @@ import com.github.dockerjava.transport.DockerHttpClient;
 
 import java.time.Duration;
 
-public final class SquilDockerClient {
-    private static volatile SquilDockerClient instance;
+public final class ContainerClient {
+    private static volatile ContainerClient instance;
 
     public DockerClient client;
 
-    private SquilDockerClient() {
+    private ContainerClient() {
         DockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
 
         DockerHttpClient httpClient = new ApacheDockerHttpClient.Builder()
@@ -28,14 +28,14 @@ public final class SquilDockerClient {
         this.client = DockerClientImpl.getInstance(config, httpClient);
     }
 
-    public static SquilDockerClient getInstance() {
-        SquilDockerClient result = instance;
+    public static ContainerClient getInstance() {
+        ContainerClient result = instance;
         if (result != null) {
             return result;
         }
-        synchronized (SquilDockerClient.class) {
+        synchronized (ContainerClient.class) {
             if (instance == null) {
-                instance = new SquilDockerClient();
+                instance = new ContainerClient();
             }
             return instance;
         }
