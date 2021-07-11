@@ -6,29 +6,25 @@ import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.CreateVolumeResponse;
 import com.github.dockerjava.api.command.ExecCreateCmdResponse;
 import com.github.dockerjava.api.model.*;
-import hr.bskracic.squil.exception.ContainerNotFoundException;
-import hr.bskracic.squil.util.SquilDockerClient;
+import hr.bskracic.squil.exception.*;
+import hr.bskracic.squil.util.ContainerClient;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.HttpClientErrorException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.sql.Array;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 @Component
-public class SquilDockerService {
+public class ContainerService {
 
     public List<Container> getAllContainers() {
-        DockerClient client = SquilDockerClient.getInstance().client;
-        return client.listContainersCmd().exec();
+        return ContainerClient.getInstance().client.listContainersCmd().withShowAll(true).withFilter("name", List.of("squil_container_")).exec();
     }
 
     public String createContainer(String userID) {
-        DockerClient client = SquilDockerClient.getInstance().client;
+        DockerClient client = ContainerClient.getInstance().client;
 
         // Create volume
         CreateVolumeResponse volume = client.createVolumeCmd().withName(userID).exec();
@@ -38,7 +34,7 @@ public class SquilDockerService {
                         .withHostConfig(HostConfig.newHostConfig()
                         .withBinds(new Bind("/var/lib/postgresql/data", new Volume(volume.getMountpoint()))))
                         .withImage("postgres")
-                        .withName(userID)
+                        .withName("squil_container_" + userID)
                         .withEnv("POSTGRES_PASSWORD=password")
                         .withAttachStdout(true)
                         .withAttachStderr(true)
@@ -50,15 +46,25 @@ public class SquilDockerService {
         return createContainerResponse.getId();
     }
 
+    public void startContainer(String userID) {
+        try {
+            ContainerClient.getInstance().client.startContainerCmd("squil_container_" + userID).exec();
+        } catch (Exception e) {
+            throw new ContainerRunningException(userID);
+        }
+    }
+
     public String executeQuery(String sqlQuery, String userID) {
 
-        DockerClient client = SquilDockerClient.getInstance().client;
+        DockerClient client = ContainerClient.getInstance().client;
 
-        // Check if container is running, otherwise start it <optional>
+        if(!containerExists(userID)){
+            throw new ContainerNotStartedException(userID);
+        }
 
         // Prepare statement
         ExecCreateCmdResponse command = client
-                .execCreateCmd(userID)
+                .execCreateCmd("squil_container_" + userID)
                 .withAttachStdout(true)
                 .withAttachStderr(true)
                 .withCmd("psql", "-U", "postgres", "-d", "postgres", "-c", sqlQuery)
@@ -84,31 +90,43 @@ public class SquilDockerService {
                 }
             }).awaitCompletion(1, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            throw new ContainerQueryFailedException(userID);
         }
 
         return outputStream.toString();
     }
 
-//    public boolean isRunning(String userID) {
-//        DockerClient client = SquilDockerClient.getInstance().client;
-//
-//        List<Container> containers = client.listContainersCmd().withFilter("name=", List.of("\" + userID)).exec();
-//        Optional<Container> container = containers.stream().filter(c -> c.getId().equals(userID)).findFirst();
-//
-//        if(container.isPresent()) {
-//            String[] names = container.get().getNames();
-//
-//        }
-//    }
-
     public void stopContainer(String userID) throws ContainerNotFoundException {
-        DockerClient client = SquilDockerClient.getInstance().client;
-        try {
-            client.stopContainerCmd(userID).exec();
-        } catch(Exception e) {
-            throw new ContainerNotFoundException("Container not found");
+        if(containerRunning(userID)) {
+            ContainerClient.getInstance().client.stopContainerCmd("squil_container_" + userID).exec();
+        } else {
+            throw new ContainerNotRunningException(userID);
         }
+    }
+
+    public void removeContainer(String userID) throws ContainerRunningException, ContainerNotRunningException {
+        if (containerRunning(userID)) {
+            throw new ContainerRunningException(userID);
+        } else if(!containerExists(userID)) {
+            throw new ContainerNotFoundException(userID);
+        } else {
+            ContainerClient.getInstance().client.removeContainerCmd("squil_container_"+ userID).exec();
+        }
+    }
+
+    public boolean containerExists(String containerID) {
+
+        for(var c : ContainerClient.getInstance().client.listContainersCmd().withShowAll(true).exec()) {
+            System.out.println(c.getId() + " | " + Arrays.toString(c.getNames()));
+        }
+
+        return ContainerClient.getInstance().client.listContainersCmd().withShowAll(true).exec().stream().anyMatch(c -> Arrays.equals(c.getNames(),
+                new String[]{"/squil_container_" + containerID}));
+    }
+
+    public boolean containerRunning(String containerID) {
+        return ContainerClient.getInstance().client.listContainersCmd().exec().stream().anyMatch(c -> Arrays.equals(c.getNames(),
+                new String[]{"/squil_container_" + containerID}));
     }
 
 }
