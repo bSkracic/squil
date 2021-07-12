@@ -1,2 +1,4 @@
-FROM tomcat:8
-COPY target/*.war /usr/local/tomcat/webapps/squil.war
+FROM openjdk:latest
+ARG JAR_FILE=target/*.jar
+COPY ${JAR_FILE} app.jar
+ENTRYPOINT ["java","-jar","/app.jar"]
