@@ -115,11 +115,6 @@ public class ContainerService {
     }
 
     public boolean containerExists(String containerID) {
-
-        for(var c : ContainerClient.getInstance().client.listContainersCmd().withShowAll(true).exec()) {
-            System.out.println(c.getId() + " | " + Arrays.toString(c.getNames()));
-        }
-
         return ContainerClient.getInstance().client.listContainersCmd().withShowAll(true).exec().stream().anyMatch(c -> Arrays.equals(c.getNames(),
                 new String[]{"/squil_container_" + containerID}));
     }
