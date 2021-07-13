@@ -19,12 +19,12 @@ public class ContainerActionController {
         return new QueryResponse(result);
     }
 
-    @PutMapping(path = "/start/{userID}")
+    @GetMapping(path = "/start/{userID}")
     public void startContainer (@PathVariable(name="userID") String userID) {
         containerService.startContainer(userID);
     }
 
-    @PutMapping(path = "/stop/{userID}")
+    @GetMapping(path = "/stop/{userID}")
     public void stopContainer(@PathVariable(name="userID") String userID) {
         containerService.stopContainer(userID);
     }
